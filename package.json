@@ -2,12 +2,12 @@
   "name": "bifrost",
   "version": "1.0.0",
   "description": "URL Shortener with Real-Time Analytics & Abuse Detection Engine",
-  "main": "server/index.ts",
+  "main": "index.js",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "start": "NODE_ENV=production tsx server/index.ts",
+    "start": "tsx server/index.ts",
     "server": "tsx watch server/index.ts",
     "dev:all": "concurrently \"npm run server\" \"npm run dev\"",
     "test": "tsx tests/engine.test.ts",
@@ -15,7 +15,7 @@
     "db:seed": "tsx server/db/seed.ts"
   },
   "engines": {
-    "node": "22.x"
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -30,6 +30,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-chartjs-2": "^5.3.0",
+    "tsx": "^4.19.2",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -45,7 +46,6 @@
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
     "drizzle-kit": "^0.30.4",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vite": "^6.1.0"
   }
