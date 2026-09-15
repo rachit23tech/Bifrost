@@ -17,7 +17,7 @@ function escapeHtml(str: string): string {
 
 router.get('/:slug', (req: Request, res: Response) => {
   try {
-    const { slug } = req.params;
+    const slug = req.params.slug as string;
     const confirm = req.query.confirm === 'true' || req.query.confirm === '1';
 
     // 1. Look up link in SQLite DB
