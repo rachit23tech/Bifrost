@@ -12,3 +12,5 @@ services:
         value: production
       - key: NODE_VERSION
         value: 22.11.0
+      - key: NODE_OPTIONS
+        value: "--import tsx"
