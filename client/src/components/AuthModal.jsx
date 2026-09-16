@@ -41,7 +41,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="glass-card auth-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="panel auth-modal" onClick={(e) => e.stopPropagation()}>
         
         <div className="modal-header">
           <h3 className="modal-title">
@@ -59,7 +59,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               <label className="form-label">Email</label>
               <input
                 type="email"
-                className="glass-input"
+                className="field-input"
                 placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -71,7 +71,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               <label className="form-label">Password</label>
               <input
                 type="password"
-                className="glass-input"
+                className="field-input"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

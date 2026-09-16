@@ -66,7 +66,7 @@ export default function MyLinks({ setActiveTab, setSelectedLinkId }) {
 
   return (
     <div className="links-page">
-      <div className="glass-card links-header">
+      <div className="panel links-header">
         <div>
           <h2 className="links-title">
             <Link2 color="var(--primary)" size={24} /> My Links
@@ -81,15 +81,15 @@ export default function MyLinks({ setActiveTab, setSelectedLinkId }) {
       </div>
 
       {loading ? (
-        <div className="glass-card state-card">Loading...</div>
+        <div className="panel state-card">Loading...</div>
       ) : links.length === 0 ? (
-        <div className="glass-card state-card">
+        <div className="panel state-card">
           No links yet. Head to the Shortener tab to create one.
         </div>
       ) : (
         <div className="links-list">
           {links.map((link) => (
-            <div key={link.id} className="glass-card link-item">
+            <div key={link.id} className="panel link-item">
               <div className="link-item-inner">
                 
                 <div className="link-info">
@@ -118,7 +118,7 @@ export default function MyLinks({ setActiveTab, setSelectedLinkId }) {
                   </div>
 
                   <button className="btn-icon" onClick={() => copyUrl(link.slug, link.id)}>
-                    {copiedId === link.id ? <Check size={16} color="#34d399" /> : <Copy size={16} />}
+                    {copiedId === link.id ? <Check size={16} color="#4a9d6f" /> : <Copy size={16} />}
                   </button>
 
                   <button className="btn-icon" onClick={() => { setSelectedLinkId(link.id); setActiveTab('analytics'); }} title="Analytics">
@@ -130,7 +130,7 @@ export default function MyLinks({ setActiveTab, setSelectedLinkId }) {
                   </button>
 
                   <button className="btn-icon btn-danger" onClick={() => deleteLink(link.id)} title="Delete">
-                    <Trash2 size={16} color="#f87171" />
+                    <Trash2 size={16} color="#b1544a" />
                   </button>
 
                 </div>
@@ -142,17 +142,17 @@ export default function MyLinks({ setActiveTab, setSelectedLinkId }) {
 
       {inspectingSignals && (
         <div className="modal-overlay" onClick={() => setInspectingSignals(null)}>
-          <div className="glass-card modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className="panel modal-card" onClick={(e) => e.stopPropagation()}>
             <h3 className="modal-title" style={{ marginBottom: '1rem' }}>
               Signals for /{inspectingSignals.link.slug}
             </h3>
             
             <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-              Score: <strong style={{ color: '#fbbf24' }}>{inspectingSignals.link.abuse_score}/100</strong> · Status: <strong>{inspectingSignals.link.status}</strong>
+              Score: <strong style={{ color: '#b98a3f' }}>{inspectingSignals.link.abuse_score}/100</strong> · Status: <strong>{inspectingSignals.link.status}</strong>
             </p>
 
             {inspectingSignals.signals.length === 0 ? (
-              <p style={{ color: '#34d399', fontSize: '0.9rem' }}>No risk signals found.</p>
+              <p style={{ color: '#4a9d6f', fontSize: '0.9rem' }}>No risk signals found.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '1.5rem' }}>
                 {inspectingSignals.signals.map((s, idx) => (

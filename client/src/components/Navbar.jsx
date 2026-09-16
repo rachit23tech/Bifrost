@@ -1,14 +1,14 @@
 import React from 'react';
 import { Link, Activity, ShieldAlert, User, LogOut } from 'lucide-react';
 
-export default function Navbar({ activeTab, setActiveTab, user, onLogout, openAuth, wsConnected }) {
+export default function Navbar({ activeTab, setActiveTab, user, onLogout, openAuth }) {
   return (
     <header className="navbar">
       <div className="navbar-inner">
         
         <div className="navbar-brand" onClick={() => setActiveTab('shortener')}>
           <div className="navbar-logo">
-            <Link size={24} color="#fff" />
+            <Link size={24} color="var(--primary)" />
           </div>
           <div>
             <h1 className="navbar-title">BIFROST</h1>
@@ -40,13 +40,6 @@ export default function Navbar({ activeTab, setActiveTab, user, onLogout, openAu
         </nav>
 
         <div className="navbar-right">
-          <div className="ws-indicator">
-            <div className={`ws-dot ${wsConnected ? 'connected' : 'disconnected'}`} />
-            <span style={{ color: wsConnected ? '#34d399' : '#f87171', fontWeight: 600 }}>
-              {wsConnected ? 'Live' : 'Offline'}
-            </span>
-          </div>
-
           {user ? (
             <div className="navbar-user">
               <span className="navbar-email">{user.email}</span>

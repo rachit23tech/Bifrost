@@ -10,7 +10,6 @@ export default function App() {
   const [selectedLinkId, setSelectedLinkId] = useState(null);
   const [user, setUser] = useState(null);
   const [authOpen, setAuthOpen] = useState(false);
-  const [wsConnected, setWsConnected] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('bifrost_token');
@@ -42,7 +41,6 @@ export default function App() {
         user={user}
         onLogout={handleLogout}
         openAuth={() => setAuthOpen(true)}
-        wsConnected={wsConnected}
       />
 
       <main className="app-main">
@@ -58,7 +56,6 @@ export default function App() {
           <AnalyticsDashboard
             selectedLinkId={selectedLinkId}
             setSelectedLinkId={setSelectedLinkId}
-            setWsConnected={setWsConnected}
           />
         )}
 

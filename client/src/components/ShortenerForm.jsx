@@ -59,14 +59,14 @@ export default function ShortenerForm({ onLinkCreated, setActiveTab, setSelected
       
       <div className="shortener-hero">
         <h2>
-          Shorten any URL with <span className="gradient-text">built-in security</span>
+          Shorten any URL with <span className="hero-highlight">built-in security</span>
         </h2>
         <p>
           Every link is automatically scanned against threat signals before activation. Track clicks in real-time from your dashboard.
         </p>
       </div>
 
-      <div className="glass-card form-card">
+      <div className="panel form-card">
         <form onSubmit={handleShorten}>
           <div className="form-stack">
             
@@ -74,7 +74,7 @@ export default function ShortenerForm({ onLinkCreated, setActiveTab, setSelected
               <label className="form-label">Destination URL</label>
               <input
                 type="url"
-                className="glass-input form-input-lg"
+                className="field-input form-input-lg"
                 placeholder="https://example.com/your-long-url"
                 value={destinationUrl}
                 onChange={(e) => setDestinationUrl(e.target.value)}
@@ -88,7 +88,7 @@ export default function ShortenerForm({ onLinkCreated, setActiveTab, setSelected
                 <span className="slug-prefix">bifrost/</span>
                 <input
                   type="text"
-                  className="glass-input"
+                  className="field-input"
                   placeholder="my-custom-slug"
                   value={customSlug}
                   onChange={(e) => setCustomSlug(e.target.value)}
@@ -134,11 +134,11 @@ export default function ShortenerForm({ onLinkCreated, setActiveTab, setSelected
 
       {createdResult && (
         <div
-          className="glass-card result-card"
+          className="panel result-card"
           style={{
-            borderColor: createdResult.link.status === 'blocked' ? '#ef4444'
-              : createdResult.link.status === 'flagged' ? '#f59e0b'
-              : '#10b981'
+            borderColor: createdResult.link.status === 'blocked' ? '#b1544a'
+              : createdResult.link.status === 'flagged' ? '#b98a3f'
+              : '#4a9d6f'
           }}
         >
           

@@ -5,7 +5,7 @@ import { Bar } from 'react-chartjs-2';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, setWsConnected }) {
+export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId }) {
   const [links, setLinks] = useState([]);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [recentClicks, setRecentClicks] = useState([]);
@@ -71,7 +71,6 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
     wsRef.current = ws;
 
     ws.onopen = () => {
-      if (setWsConnected) setWsConnected(true);
       ws.send(JSON.stringify({ type: 'SUBSCRIBE_LINK', linkId: Number(selectedLinkId) }));
     };
 
@@ -108,10 +107,6 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
       }
     };
 
-    ws.onclose = () => {
-      if (setWsConnected) setWsConnected(false);
-    };
-
     return () => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.close();
@@ -137,8 +132,8 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
       {
         label: 'Clicks',
         data: hourlyBuckets.length > 0 ? hourlyBuckets.map((b) => b.click_count) : [0],
-        backgroundColor: 'rgba(99, 102, 241, 0.65)',
-        borderColor: '#6366f1',
+        backgroundColor: 'rgba(61, 118, 144, 0.65)',
+        borderColor: '#3d7690',
         borderWidth: 1,
         borderRadius: 6
       }
@@ -150,18 +145,18 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
-      tooltip: { backgroundColor: '#1e293b', titleColor: '#f8fafc', bodyColor: '#cbd5e1' }
+      tooltip: { backgroundColor: '#161d29', titleColor: '#e4e7eb', bodyColor: '#8993a1' }
     },
     scales: {
-      x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' } },
-      y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' }, beginAtZero: true }
+      x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#8993a1' } },
+      y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#8993a1' }, beginAtZero: true }
     }
   };
 
   return (
     <div className="analytics-page">
       
-      <div className="glass-card analytics-header">
+      <div className="panel analytics-header">
         <div>
           <h2 className="analytics-title">
             <Activity color="var(--primary)" size={24} /> Live Analytics
@@ -174,7 +169,7 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
         <div className="analytics-controls">
           {links.length > 0 ? (
             <select
-              className="glass-input link-selector"
+              className="field-input link-selector"
               value={selectedLinkId || ''}
               onChange={(e) => setSelectedLinkId(Number(e.target.value))}
             >
@@ -195,7 +190,7 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
       </div>
 
       {loading ? (
-        <div className="glass-card state-card">
+        <div className="panel state-card">
           Loading analytics...
         </div>
       ) : analyticsData ? (
@@ -203,9 +198,9 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
           
           <div className="kpi-grid">
             
-            <div className="glass-card kpi-card">
+            <div className="panel kpi-card">
               <span className="kpi-label">Total Clicks</span>
-              <div className="kpi-value" style={{ color: '#f8fafc' }}>
+              <div className="kpi-value" style={{ color: '#e4e7eb' }}>
                 {analyticsData.analytics.totalClicks}
               </div>
               <span className="kpi-sub-success">
@@ -213,17 +208,17 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
               </span>
             </div>
 
-            <div className="glass-card kpi-card">
+            <div className="panel kpi-card">
               <span className="kpi-label">Last 24 Hours</span>
-              <div className="kpi-value" style={{ color: '#38bdf8' }}>
+              <div className="kpi-value" style={{ color: '#4d8fac' }}>
                 {analyticsData.analytics.last24hClicks}
               </div>
               <span className="kpi-sub">Rolling window</span>
             </div>
 
-            <div className="glass-card kpi-card">
+            <div className="panel kpi-card">
               <span className="kpi-label">Risk Score</span>
-              <div className="kpi-value" style={{ color: analyticsData.link.abuseScore >= 70 ? '#f87171' : analyticsData.link.abuseScore >= 30 ? '#fbbf24' : '#34d399' }}>
+              <div className="kpi-value" style={{ color: analyticsData.link.abuseScore >= 70 ? '#b1544a' : analyticsData.link.abuseScore >= 30 ? '#b98a3f' : '#4a9d6f' }}>
                 {analyticsData.link.abuseScore} <span style={{ fontSize: '1rem', color: 'var(--text-dim)' }}>/ 100</span>
               </div>
               <span className={analyticsData.link.status === 'blocked' ? 'badge-blocked' : analyticsData.link.status === 'flagged' ? 'badge-flagged' : 'badge-active'} style={{ marginTop: '4px' }}>
@@ -231,9 +226,9 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
               </span>
             </div>
 
-            <div className="glass-card kpi-card">
+            <div className="panel kpi-card">
               <span className="kpi-label">Short Link</span>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#c084fc', marginTop: '8px', fontFamily: 'var(--font-mono)' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#5d7a94', marginTop: '8px', fontFamily: 'var(--font-mono)' }}>
                 /{analyticsData.link.slug}
               </div>
               <span className="kpi-sub" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -245,7 +240,7 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
 
           <div className="chart-feed-grid">
             
-            <div className="glass-card chart-card">
+            <div className="panel chart-card">
               <h3 className="chart-title">
                 <MousePointer size={18} color="var(--primary)" /> Clicks — Last 24 Hours
               </h3>
@@ -254,10 +249,10 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
               </div>
             </div>
 
-            <div className="glass-card live-feed-card">
+            <div className="panel live-feed-card">
               <div className="feed-header">
                 <h3 className="feed-title">
-                  <span className="ws-dot connected" /> Live Feed
+                  <span className="feed-live-dot" /> Live Feed
                 </h3>
                 <span className="feed-badge">LIVE</span>
               </div>
@@ -271,7 +266,7 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
                   liveStream.map((event, i) => (
                     <div key={i} className="feed-event">
                       <div className="feed-event-top">
-                        <span style={{ color: '#38bdf8' }}>{event.country}</span>
+                        <span style={{ color: '#4d8fac' }}>{event.country}</span>
                         <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>{new Date(event.clickedAt).toLocaleTimeString()}</span>
                       </div>
                       <div className="feed-event-bottom">
@@ -288,7 +283,7 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
 
           <div className="breakdown-grid">
             
-            <div className="glass-card breakdown-card">
+            <div className="panel breakdown-card">
               <h4 className="breakdown-title">
                 <Globe size={18} color="var(--accent-cyan)" /> Countries
               </h4>
@@ -306,7 +301,7 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
               )}
             </div>
 
-            <div className="glass-card breakdown-card">
+            <div className="panel breakdown-card">
               <h4 className="breakdown-title">
                 <Smartphone size={18} color="var(--accent-purple)" /> Devices
               </h4>
@@ -324,9 +319,9 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
               )}
             </div>
 
-            <div className="glass-card breakdown-card">
+            <div className="panel breakdown-card">
               <h4 className="breakdown-title">
-                <MousePointer size={18} color="#34d399" /> Referrers
+                <MousePointer size={18} color="#4a9d6f" /> Referrers
               </h4>
               {Object.keys(analyticsData.analytics.referrerBreakdown).length === 0 ? (
                 <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>No data yet</p>
@@ -335,7 +330,7 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
                   {Object.entries(analyticsData.analytics.referrerBreakdown).map(([ref, count]) => (
                     <div key={ref} className="breakdown-row">
                       <span>{ref}</span>
-                      <strong style={{ color: '#34d399' }}>{count}</strong>
+                      <strong style={{ color: '#4a9d6f' }}>{count}</strong>
                     </div>
                   ))}
                 </div>
@@ -346,7 +341,7 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId, 
 
         </div>
       ) : (
-        <div className="glass-card state-card">
+        <div className="panel state-card">
           Select a link above to view analytics.
         </div>
       )}
