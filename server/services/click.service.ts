@@ -1,5 +1,11 @@
 import { db } from '../db/index.js';
 import { wsService } from './websocket.service.js';
+import geoip from 'geoip-lite';
+
+// Converts geoip-lite's ISO 3166-1 alpha-2 country codes (e.g. 'IN', 'US') into
+// full display names ('India', 'United States') using Node's built-in Intl API -
+// no extra dependency or hardcoded country list needed.
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
 export interface ClickData {
   linkId: number;
@@ -20,14 +26,17 @@ export class ClickAnalyticsService {
   }
 
   private parseCountry(ip: string): string {
-    // Simulated GeoIP lookup based on IP hash / prefix
-    const countries = ['United States', 'Germany', 'India', 'United Kingdom', 'Canada', 'Japan', 'France', 'Brazil'];
-    let hash = 0;
-    for (let i = 0; i < ip.length; i++) {
-      hash = (hash << 5) - hash + ip.charCodeAt(i);
-      hash |= 0;
+    // Real GeoIP lookup via geoip-lite's offline MaxMind GeoLite2-derived
+    // database - a local binary lookup (no network call, so it doesn't add
+    // latency to the redirect path). Returns null for private/loopback/
+    // unresolvable IPs (localhost during dev, LAN ranges, etc.).
+    const geo = geoip.lookup(ip);
+    if (!geo || !geo.country) return 'Unknown';
+    try {
+      return regionNames.of(geo.country) || geo.country;
+    } catch {
+      return geo.country;
     }
-    return countries[Math.abs(hash) % countries.length];
   }
 
   private parseReferrer(ref: string): string {
