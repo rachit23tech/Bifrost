@@ -27,6 +27,7 @@
     "drizzle-orm": "^0.38.4",
     "express": "^4.21.2",
     "geoip-lite": "^1.4.10",
+    "google-auth-library": "^11.0.2",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.474.0",
     "react": "^19.0.0",
