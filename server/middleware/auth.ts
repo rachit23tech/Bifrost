@@ -1,12 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'bifrost_dev_secret_key';
-
-// Warn if using default secret in production
-if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
-  console.warn('WARNING: JWT_SECRET is not set. Using default is insecure in production.');
-}
+import { JWT_SECRET } from '../config.js';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -49,4 +43,23 @@ export function optionalAuthenticateToken(req: AuthRequest, res: Response, next:
     }
   }
   next();
+}
+
+/** Verifies a raw JWT string. Returns the user it identifies, or null. */
+export function verifyToken(token: string): { id: number; email: string } | null {
+  try {
+    return jwt.verify(token, JWT_SECRET) as { id: number; email: string };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Who may read a link's details and analytics.
+ * Links created while signed out have no owner and stay public. A link with an
+ * owner is visible only to that owner.
+ */
+export function canViewLink(link: { owner_id: number | null }, user?: { id: number }): boolean {
+  if (link.owner_id === null || link.owner_id === undefined) return true;
+  return user?.id === link.owner_id;
 }

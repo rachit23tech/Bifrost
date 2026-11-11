@@ -54,7 +54,10 @@ export default function MyLinks({ setActiveTab, setSelectedLinkId }) {
 
   const fetchSignals = async (id) => {
     try {
-      const res = await fetch(`/api/links/${id}`);
+      const token = localStorage.getItem('bifrost_token');
+      const res = await fetch(`/api/links/${id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       if (res.ok) {
         const data = await res.json();
         setInspectingSignals(data);

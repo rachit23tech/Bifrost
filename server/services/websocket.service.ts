@@ -1,6 +1,8 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { WSMessage } from '../../shared/types.js';
+import { db } from '../db/index.js';
+import { verifyToken, canViewLink } from '../middleware/auth.js';
 
 class WebSocketService {
   private wss: WebSocketServer | null = null;
@@ -11,14 +13,20 @@ class WebSocketService {
     this.wss = new WebSocketServer({ server, path: '/ws' });
 
     this.wss.on('connection', (ws: WebSocket) => {
-      console.log('⚡ New WebSocket connection established');
-
       let currentSubscribedLinkId: number | null = null;
 
       ws.on('message', (message: string) => {
         try {
           const parsed = JSON.parse(message.toString());
           if (parsed.type === 'SUBSCRIBE_LINK' && typeof parsed.linkId === 'number') {
+            // Same rule as the REST analytics endpoints: a link with an owner
+            // streams its clicks only to that owner.
+            const link = db.prepare('SELECT owner_id FROM links WHERE id = ?').get(parsed.linkId) as any;
+            const user = typeof parsed.token === 'string' ? verifyToken(parsed.token) : null;
+            if (!link || !canViewLink(link, user ?? undefined)) {
+              ws.send(JSON.stringify({ type: 'ERROR', error: 'Not authorized to subscribe to this link' }));
+              return;
+            }
             // Unsubscribe from previous link if any
             if (currentSubscribedLinkId !== null) {
               this.unsubscribe(currentSubscribedLinkId, ws);
@@ -59,6 +67,11 @@ class WebSocketService {
         this.subscriptions.delete(linkId);
       }
     }
+  }
+
+  /** True if at least one dashboard is watching this link's live feed. */
+  public hasSubscribers(linkId: number): boolean {
+    return (this.subscriptions.get(linkId)?.size ?? 0) > 0;
   }
 
   public broadcastToLink(linkId: number, message: WSMessage) {

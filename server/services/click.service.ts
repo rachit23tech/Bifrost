@@ -1,6 +1,7 @@
 import { db } from '../db/index.js';
 import { wsService } from './websocket.service.js';
 import geoip from 'geoip-lite';
+import { hashIp } from '../utils/ip.js';
 
 // Converts geoip-lite's ISO 3166-1 alpha-2 country codes (e.g. 'IN', 'US') into
 // full display names ('India', 'United States') using Node's built-in Intl API -
@@ -50,90 +51,90 @@ export class ClickAnalyticsService {
   }
 
   /**
-   * Log a click synchronously and update rolling pre-aggregated hourly buckets
+   * Record a click and update the link's pre-aggregated hourly bucket
    */
   public logClick(data: ClickData) {
     const device = this.parseDevice(data.userAgent);
     const country = this.parseCountry(data.ip);
     const referrer = this.parseReferrer(data.referrer);
+    // The raw IP is used for the country lookup above and then discarded.
+    // Only its keyed hash is stored or sent to dashboard clients.
+    const ipHash = hashIp(data.ip);
     const clickedAt = new Date().toISOString();
 
-    // 1. Synchronous Insert into raw clicks table
-    const insertResult = db.prepare(`
-      INSERT INTO clicks (link_id, ip_hash, country, device, referrer, clicked_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(data.linkId, data.ip, country, device, referrer, clickedAt);
-
-    // 2. Pre-Aggregation into rolling hourly buckets
     const now = new Date();
     const hourTimestamp = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')} ${String(now.getUTCHours()).padStart(2, '0')}:00:00`;
 
-    // Fetch existing hourly bucket or create empty
-    const existingBucket = db.prepare(`
-      SELECT * FROM hourly_buckets WHERE link_id = ? AND hour_timestamp = ?
-    `).get(data.linkId, hourTimestamp) as any;
+    // The raw click row and its hourly bucket are written in one transaction,
+    // so the two can never disagree (and SQLite does one disk sync, not two).
+    const insertResult = db.transaction(() => {
+      // 1. Raw click row
+      const result = db.prepare(`
+        INSERT INTO clicks (link_id, ip_hash, country, device, referrer, clicked_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(data.linkId, ipHash, country, device, referrer, clickedAt);
 
-    let geoBreakdown: Record<string, number> = {};
-    let deviceBreakdown: Record<string, number> = {};
-    let referrerBreakdown: Record<string, number> = {};
-    let clickCount = 0;
+      // 2. Pre-aggregation into the link's bucket for the current hour
+      const existingBucket = db.prepare(`
+        SELECT * FROM hourly_buckets WHERE link_id = ? AND hour_timestamp = ?
+      `).get(data.linkId, hourTimestamp) as any;
 
-    if (existingBucket) {
-      clickCount = existingBucket.click_count;
-      geoBreakdown = JSON.parse(existingBucket.geo_breakdown || '{}');
-      deviceBreakdown = JSON.parse(existingBucket.device_breakdown || '{}');
-      referrerBreakdown = JSON.parse(existingBucket.referrer_breakdown || '{}');
+      const geoBreakdown: Record<string, number> = JSON.parse(existingBucket?.geo_breakdown || '{}');
+      const deviceBreakdown: Record<string, number> = JSON.parse(existingBucket?.device_breakdown || '{}');
+      const referrerBreakdown: Record<string, number> = JSON.parse(existingBucket?.referrer_breakdown || '{}');
+
+      geoBreakdown[country] = (geoBreakdown[country] || 0) + 1;
+      deviceBreakdown[device] = (deviceBreakdown[device] || 0) + 1;
+      referrerBreakdown[referrer] = (referrerBreakdown[referrer] || 0) + 1;
+
+      db.prepare(`
+        INSERT INTO hourly_buckets (link_id, hour_timestamp, click_count, geo_breakdown, device_breakdown, referrer_breakdown)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(link_id, hour_timestamp) DO UPDATE SET
+          click_count = excluded.click_count,
+          geo_breakdown = excluded.geo_breakdown,
+          device_breakdown = excluded.device_breakdown,
+          referrer_breakdown = excluded.referrer_breakdown
+      `).run(
+        data.linkId,
+        hourTimestamp,
+        (existingBucket?.click_count || 0) + 1,
+        JSON.stringify(geoBreakdown),
+        JSON.stringify(deviceBreakdown),
+        JSON.stringify(referrerBreakdown)
+      );
+
+      return result;
+    })();
+
+    // 3. Live push. Building the stats payload costs several queries, so skip
+    // it entirely unless a dashboard is actually subscribed to this link.
+    if (wsService.hasSubscribers(data.linkId)) {
+      const stats = this.getLinkAnalytics(data.linkId);
+
+      wsService.broadcastToLink(data.linkId, {
+        type: 'CLICK_EVENT',
+        payload: {
+          linkId: data.linkId,
+          slug: data.slug,
+          destinationUrl: data.destinationUrl,
+          clickedAt,
+          country,
+          device,
+          referrer,
+          ipHash,
+          totalClicks: stats.totalClicks
+        }
+      });
+
+      wsService.broadcastToLink(data.linkId, {
+        type: 'STATS_UPDATE',
+        payload: {
+          linkId: data.linkId,
+          ...stats
+        }
+      });
     }
-
-    clickCount += 1;
-    geoBreakdown[country] = (geoBreakdown[country] || 0) + 1;
-    deviceBreakdown[device] = (deviceBreakdown[device] || 0) + 1;
-    referrerBreakdown[referrer] = (referrerBreakdown[referrer] || 0) + 1;
-
-    db.prepare(`
-      INSERT INTO hourly_buckets (link_id, hour_timestamp, click_count, geo_breakdown, device_breakdown, referrer_breakdown)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(link_id, hour_timestamp) DO UPDATE SET
-        click_count = excluded.click_count,
-        geo_breakdown = excluded.geo_breakdown,
-        device_breakdown = excluded.device_breakdown,
-        referrer_breakdown = excluded.referrer_breakdown
-    `).run(
-      data.linkId,
-      hourTimestamp,
-      clickCount,
-      JSON.stringify(geoBreakdown),
-      JSON.stringify(deviceBreakdown),
-      JSON.stringify(referrerBreakdown)
-    );
-
-    // Total click count for this link
-    const totalRow = db.prepare('SELECT COUNT(*) as count FROM clicks WHERE link_id = ?').get(data.linkId) as { count: number };
-
-    // 3. Dispatch WebSocket Real-time Push
-    wsService.broadcastToLink(data.linkId, {
-      type: 'CLICK_EVENT',
-      payload: {
-        linkId: data.linkId,
-        slug: data.slug,
-        destinationUrl: data.destinationUrl,
-        clickedAt,
-        country,
-        device,
-        referrer,
-        ipHash: data.ip,
-        totalClicks: totalRow.count
-      }
-    });
-
-    const stats = this.getLinkAnalytics(data.linkId);
-    wsService.broadcastToLink(data.linkId, {
-      type: 'STATS_UPDATE',
-      payload: {
-        linkId: data.linkId,
-        ...stats
-      }
-    });
 
     return insertResult;
   }

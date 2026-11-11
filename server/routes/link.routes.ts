@@ -1,31 +1,53 @@
 import { Router, Response } from 'express';
 import { db } from '../db/index.js';
-import { optionalAuthenticateToken, authenticateToken, AuthRequest } from '../middleware/auth.js';
-import { slugService } from '../services/slug.service.js';
+import { optionalAuthenticateToken, authenticateToken, canViewLink, AuthRequest } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
+import { MAX_URL_LENGTH } from '../config.js';
+import { slugService, validateCustomSlug } from '../services/slug.service.js';
 import { abuseEngine } from '../services/abuse.service.js';
 
 const router = Router();
 
+// 20 new links per minute per IP is plenty for a person and slows down a script.
+const createLimiter = rateLimit({ windowMs: 60_000, max: 20 });
+
+// Random slugs can collide, with each other or with a custom slug someone
+// already took. The UNIQUE constraint on links.slug is the source of truth, so
+// insert and retry with a fresh slug if SQLite reports a conflict.
+const MAX_SLUG_ATTEMPTS = 5;
+
+function isSlugConflict(err: any): boolean {
+  return err?.code === 'SQLITE_CONSTRAINT_UNIQUE';
+}
+
 // Create Short Link
-router.post('/', optionalAuthenticateToken, (req: AuthRequest, res: Response) => {
+router.post('/', createLimiter, optionalAuthenticateToken, (req: AuthRequest, res: Response) => {
   try {
     const { destinationUrl, customSlug, expiresAt } = req.body;
 
-    if (!destinationUrl) {
+    if (!destinationUrl || typeof destinationUrl !== 'string') {
       return res.status(400).json({ error: 'destinationUrl is required' });
     }
+    if (destinationUrl.length > MAX_URL_LENGTH) {
+      return res.status(400).json({ error: `destinationUrl must be at most ${MAX_URL_LENGTH} characters` });
+    }
 
-    let slug = customSlug ? customSlug.trim() : null;
+    let parsed: URL;
+    try {
+      parsed = new URL(destinationUrl);
+    } catch {
+      return res.status(400).json({ error: 'destinationUrl is not a valid URL' });
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return res.status(400).json({ error: 'Only http and https URLs can be shortened' });
+    }
 
-    if (slug) {
-      // Validate custom slug uniqueness
-      const existing = db.prepare('SELECT id FROM links WHERE slug = ?').get(slug);
-      if (existing) {
-        return res.status(409).json({ error: `Slug '${slug}' is already taken` });
+    const custom = typeof customSlug === 'string' && customSlug.trim() ? customSlug.trim() : null;
+    if (custom) {
+      const slugError = validateCustomSlug(custom);
+      if (slugError) {
+        return res.status(400).json({ error: slugError });
       }
-    } else {
-      // Generate Base62 Counter-based Slug
-      slug = slugService.generateSlug();
     }
 
     // 1. Evaluate Abuse Risk (0 - 100)
@@ -34,19 +56,36 @@ router.post('/', optionalAuthenticateToken, (req: AuthRequest, res: Response) =>
     const evalResult = abuseEngine.evaluateCreation(destinationUrl, userId, clientIp);
 
     // 2. Insert into links database table
-    const result = db.prepare(`
+    const insert = db.prepare(`
       INSERT INTO links (slug, owner_id, destination_url, status, abuse_score, expires_at)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(
-      slug,
-      userId || null,
-      destinationUrl,
-      evalResult.status,
-      evalResult.score,
-      expiresAt || null
-    );
+    `);
 
-    const linkId = Number(result.lastInsertRowid);
+    let linkId: number | null = null;
+    for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS && linkId === null; attempt++) {
+      const slug = custom ?? slugService.generateSlug();
+      try {
+        const result = insert.run(
+          slug,
+          userId || null,
+          destinationUrl,
+          evalResult.status,
+          evalResult.score,
+          expiresAt || null
+        );
+        linkId = Number(result.lastInsertRowid);
+      } catch (err) {
+        if (!isSlugConflict(err)) throw err;
+        if (custom) {
+          return res.status(409).json({ error: `Slug '${custom}' is already taken` });
+        }
+        // generated slug collided: loop and draw another
+      }
+    }
+
+    if (linkId === null) {
+      return res.status(503).json({ error: 'Could not allocate a short link, please retry' });
+    }
 
     // 3. Persist detected risk signals
     if (evalResult.signals.length > 0) {
@@ -70,7 +109,8 @@ router.post('/', optionalAuthenticateToken, (req: AuthRequest, res: Response) =>
       evaluation: evalResult
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Internal server error' });
+    console.error('Failed to create link:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -94,13 +134,16 @@ router.get('/my-links', authenticateToken, (req: AuthRequest, res: Response) => 
 });
 
 // Get Link Details & Abuse Signals
-router.get('/:id', (req: AuthRequest, res: Response) => {
+router.get('/:id', optionalAuthenticateToken, (req: AuthRequest, res: Response) => {
   try {
     const linkId = req.params.id;
     const link = db.prepare('SELECT * FROM links WHERE id = ?').get(linkId) as any;
 
     if (!link) {
       return res.status(404).json({ error: 'Link not found' });
+    }
+    if (!canViewLink(link, req.user)) {
+      return res.status(403).json({ error: 'Not authorized to view this link' });
     }
 
     const signals = db.prepare('SELECT * FROM abuse_signals WHERE link_id = ?').all(linkId);

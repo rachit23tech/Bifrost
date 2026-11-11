@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../db/index.js';
 import { clickService } from '../services/click.service.js';
 import { abuseEngine } from '../services/abuse.service.js';
+import { hashIp } from '../utils/ip.js';
 
 const router = Router();
 
@@ -140,12 +141,15 @@ router.get('/:slug', (req: Request, res: Response) => {
     }
 
     // 5. Active Link or Confirmed Flagged Link -> Log Click & 302 Redirect
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
+    // req.ip honours the 'trust proxy' setting, so it takes the address added by
+    // our own reverse proxy. Reading X-Forwarded-For directly would let any
+    // client fake its IP by sending that header.
+    const clientIp = req.ip || req.socket.remoteAddress || '127.0.0.1';
     const userAgent = req.headers['user-agent'] || 'Unknown';
     const referrer = (req.headers['referer'] || req.headers['referrer'] || 'direct') as string;
 
     // Check click-time bot/velocity
-    const clickCheck = abuseEngine.evaluateClick(link.id, userAgent, clientIp);
+    const clickCheck = abuseEngine.evaluateClick(link.id, userAgent, hashIp(clientIp));
     if (!clickCheck.isBot) {
       clickService.logClick({
         linkId: link.id,

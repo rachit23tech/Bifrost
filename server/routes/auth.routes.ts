@@ -3,14 +3,18 @@ import bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
 import { db } from '../db/index.js';
 import { generateToken, authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 const router = Router();
+
+// Slows down password guessing: 10 attempts per IP every 15 minutes.
+const authLimiter = rateLimit({ windowMs: 15 * 60_000, max: 10 });
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 // Sign Up
-router.post('/signup', async (req: Request, res: Response) => {
+router.post('/signup', authLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
@@ -42,7 +46,7 @@ router.post('/signup', async (req: Request, res: Response) => {
 });
 
 // Login
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', authLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
@@ -76,7 +80,7 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 // Google Sign-In (ID token verification)
-router.post('/google', async (req: Request, res: Response) => {
+router.post('/google', authLimiter, async (req: Request, res: Response) => {
   try {
     if (!googleClient || !GOOGLE_CLIENT_ID) {
       return res.status(501).json({ error: 'Google sign-in is not configured on this server' });

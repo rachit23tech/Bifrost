@@ -1,15 +1,22 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { hashIp } from '../utils/ip.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dbPath = path.resolve(__dirname, '../../bifrost.db');
+// DB_PATH lets tests run against an in-memory database (':memory:').
+const dbPath = process.env.DB_PATH || path.resolve(__dirname, '../../bifrost.db');
 export const db = new Database(dbPath);
 
 // Enable WAL mode for high performance concurrent reads/writes
 db.pragma('journal_mode = WAL');
+
+// SQLite ignores FOREIGN KEY clauses unless this is switched on per connection.
+// Without it, the ON DELETE CASCADE rules below never run and deleting a link
+// leaves its clicks and abuse signals behind.
+db.pragma('foreign_keys = ON');
 
 export function initDatabase() {
   db.exec(`
@@ -68,9 +75,33 @@ export function initDatabase() {
     );
 
     INSERT OR IGNORE INTO global_counter (id, last_val) VALUES (1, 1000);
+
+    -- Every redirect asks "how many clicks from this visitor on this link in the
+    -- last 5 seconds?". Without an index that is a scan of the whole clicks
+    -- table, so redirects got slower with every click ever recorded. It also
+    -- serves the per-link lookups used by the dashboard.
+    CREATE INDEX IF NOT EXISTS idx_clicks_link_ip_time ON clicks (link_id, ip_hash, clicked_at);
   `);
 
   migrateUsersTableForGoogleAuth();
+  hashStoredRawIps();
+}
+
+/**
+ * Earlier versions wrote the visitor's raw IP into clicks.ip_hash. Replace any
+ * such value with its hash. Hashes are hex only, so a '.' or ':' identifies a
+ * raw IPv4/IPv6 address; once converted, a row is never matched again.
+ */
+function hashStoredRawIps() {
+  const rows = db.prepare(`
+    SELECT DISTINCT ip_hash FROM clicks WHERE ip_hash LIKE '%.%' OR ip_hash LIKE '%:%'
+  `).all() as Array<{ ip_hash: string }>;
+  if (rows.length === 0) return;
+
+  const update = db.prepare('UPDATE clicks SET ip_hash = ? WHERE ip_hash = ?');
+  db.transaction(() => {
+    for (const { ip_hash } of rows) update.run(hashIp(ip_hash), ip_hash);
+  })();
 }
 
 /**

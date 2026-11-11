@@ -40,6 +40,17 @@ export class AbuseDetectionEngine {
       return { score: 90, status: 'blocked', signals };
     }
 
+    // Only web links can be shortened. This rejects javascript:, data:, file:
+    // and similar schemes that have no business behind a redirect.
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      signals.push({
+        type: 'unsupported_scheme',
+        weight: 90,
+        description: `Scheme '${parsedUrl.protocol}' is not allowed; only http and https`
+      });
+      return { score: 90, status: 'blocked', signals };
+    }
+
     const hostname = parsedUrl.hostname.toLowerCase();
 
     // Signal 1: Blocklisted Domain Check (+80)
@@ -84,11 +95,14 @@ export class AbuseDetectionEngine {
     }
 
     // Signal 5: Credential/UserInfo @ trick (+50)
-    if (parsedUrl.username || parsedUrl.password || destinationUrl.includes('@')) {
+    // e.g. https://paypal.com@evil.example/ really goes to evil.example.
+    // Check the parsed userinfo only: an '@' in the path or query
+    // (medium.com/@user, Google Maps links) is normal and must not be flagged.
+    if (parsedUrl.username || parsedUrl.password) {
       signals.push({
         type: 'userinfo_obscuration',
         weight: 50,
-        description: 'URL contains username/password or @ symbol designed to deceive users'
+        description: 'URL embeds a username/password before the host, a common trick to disguise the real destination'
       });
       totalScore += 50;
     }
@@ -157,7 +171,7 @@ export class AbuseDetectionEngine {
   /**
    * Click-time Bot & Velocity evaluation
    */
-  public evaluateClick(linkId: number, userAgent: string, ip: string): { isBot: boolean; reason?: string } {
+  public evaluateClick(linkId: number, userAgent: string, ipHash: string): { isBot: boolean; reason?: string } {
     const botKeywords = ['bot', 'crawler', 'spider', 'curl', 'python-requests', 'postman', 'headless', 'wget'];
     const uaLower = userAgent.toLowerCase();
 
@@ -165,12 +179,12 @@ export class AbuseDetectionEngine {
       return { isBot: true, reason: `User-Agent contains bot indicator '${userAgent}'` };
     }
 
-    // Velocity check: > 30 clicks in 5 seconds from same IP
+    // Velocity check: 30+ clicks in 5 seconds from the same (hashed) IP
     const fiveSecAgo = new Date(Date.now() - 5 * 1000).toISOString();
     const countRow = db.prepare(`
       SELECT COUNT(*) as count FROM clicks
       WHERE link_id = ? AND ip_hash = ? AND clicked_at > ?
-    `).get(linkId, ip, fiveSecAgo) as { count: number };
+    `).get(linkId, ipHash, fiveSecAgo) as { count: number };
 
     if (countRow.count >= 30) {
       return { isBot: true, reason: `IP click rate spike (${countRow.count} clicks in 5s)` };

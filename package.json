@@ -11,7 +11,9 @@
     "start": "tsx server/index.ts",
     "server": "tsx watch server/index.ts",
     "dev:all": "concurrently \"npm run server\" \"npm run dev\"",
-    "test": "tsx tests/engine.test.ts",
+    "test": "tsx --test \"tests/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "bench": "tsx scripts/bench.ts",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx server/db/seed.ts"
   },
@@ -48,6 +50,7 @@
     "@types/react-dom": "^19.0.3",
     "@types/ws": "^8.5.14",
     "@vitejs/plugin-react": "^4.3.4",
+    "autocannon": "^9.0.0",
     "concurrently": "^9.1.2",
     "drizzle-kit": "^0.30.4",
     "typescript": "^5.7.3",

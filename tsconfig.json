@@ -17,5 +17,5 @@
       "@shared/*": ["shared/*"]
     }
   },
-  "include": ["server/**/*", "client/src/**/*", "shared/**/*"]
+  "include": ["server/**/*", "client/src/**/*", "shared/**/*", "tests/**/*"]
 }

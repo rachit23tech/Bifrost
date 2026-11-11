@@ -41,7 +41,9 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId }
     if (!selectedLinkId) return;
 
     setLoading(true);
-    fetch(`/api/analytics/${selectedLinkId}`)
+    const token = localStorage.getItem('bifrost_token');
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    fetch(`/api/analytics/${selectedLinkId}`, { headers })
       .then((res) => res.json())
       .then((data) => {
         setAnalyticsData(data);
@@ -52,7 +54,7 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId }
         setLoading(false);
       });
 
-    fetch(`/api/analytics/${selectedLinkId}/recent-clicks`)
+    fetch(`/api/analytics/${selectedLinkId}/recent-clicks`, { headers })
       .then((res) => res.json())
       .then((data) => {
         setRecentClicks(data.clicks || []);
@@ -71,7 +73,11 @@ export default function AnalyticsDashboard({ selectedLinkId, setSelectedLinkId }
     wsRef.current = ws;
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'SUBSCRIBE_LINK', linkId: Number(selectedLinkId) }));
+      ws.send(JSON.stringify({
+        type: 'SUBSCRIBE_LINK',
+        linkId: Number(selectedLinkId),
+        token: localStorage.getItem('bifrost_token')
+      }));
     };
 
     ws.onmessage = (event) => {
